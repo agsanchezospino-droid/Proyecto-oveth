@@ -12,76 +12,12 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# Estilos visuales modernos (CSS) sin alterar la lógica del sistema
-st.markdown("""
-<style>
-    .hero-banner {
-        background: linear-gradient(135deg, #0f172a 0%, #0369a1 55%, #0ea5e9 100%);
-        padding: 2rem 2.2rem;
-        border-radius: 18px;
-        color: #ffffff;
-        margin-bottom: 1.5rem;
-        box-shadow: 0 10px 25px rgba(2, 132, 199, 0.22);
-    }
-    .hero-badge {
-        display: inline-block;
-        background: rgba(255, 255, 255, 0.16);
-        padding: 0.3rem 0.85rem;
-        border-radius: 999px;
-        font-size: 0.78rem;
-        font-weight: 600;
-        letter-spacing: 0.05em;
-        margin-bottom: 0.6rem;
-    }
-    .hero-banner h1 {
-        color: #ffffff !important;
-        font-size: 2.1rem;
-        margin: 0 0 0.4rem 0;
-        font-weight: 800;
-    }
-    .hero-banner p {
-        color: rgba(255, 255, 255, 0.9);
-        font-size: 1rem;
-        margin: 0;
-    }
-    [data-testid="stMetric"] {
-        background-color: var(--secondary-background-color);
-        border: 1px solid rgba(14, 165, 233, 0.25);
-        border-top: 4px solid #0ea5e9;
-        padding: 1.1rem 1.3rem;
-        border-radius: 14px;
-        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
-    }
-    .pred-card {
-        background: linear-gradient(135deg, rgba(14, 165, 233, 0.14), rgba(16, 185, 129, 0.14));
-        border: 1px solid rgba(14, 165, 233, 0.35);
-        border-radius: 14px;
-        padding: 1.1rem;
-        text-align: center;
-        margin-top: 0.6rem;
-        margin-bottom: 0.8rem;
-    }
-    .pred-value {
-        font-size: 2.1rem;
-        font-weight: 800;
-        color: #0ea5e9;
-        line-height: 1.2;
-    }
-    .pred-sub {
-        font-size: 0.9rem;
-        opacity: 0.85;
-        margin-top: 0.25rem;
-    }
-    .footer-note {
-        text-align: center;
-        font-size: 0.85rem;
-        opacity: 0.7;
-        margin-top: 2rem;
-        padding-top: 1rem;
-        border-top: 1px solid rgba(148, 163, 184, 0.25);
-    }
-</style>
+# Cargar hoja de estilos CSS externa
+with open("styles.css", encoding="utf-8") as f:
+    st.markdown(f"<style>{f.read()}</style>", unsafe_allow_html=True)
 
+# Encabezado principal
+st.markdown("""
 <div class="hero-banner">
     <div class="hero-badge">🟢 DATOS ABIERTOS COLOMBIA · IDEAM · SANTIAGO DE CALI</div>
     <h1>🌬️ Predicción de Velocidad del Viento en Cali</h1>
@@ -118,7 +54,7 @@ y_pred = modelo.predict(X_test)
 mae = mean_absolute_error(y_test, y_pred)
 mse = mean_squared_error(y_test, y_pred)
 
-# 4. Panel lateral mejorado visualmente para predicción interactiva
+# 4. Panel lateral para predicción interactiva
 nombres_meses = [
     "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
     "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"
@@ -152,7 +88,7 @@ with st.sidebar:
 
     st.markdown(f"""
     <div class="pred-card">
-        <div style="font-size:0.85rem; font-weight:600; margin-bottom:0.3rem;">
+        <div class="pred-header">
             📅 {nombre_mes} &nbsp;|&nbsp; {icono_hora} {hora_usuario:02d}:00 hrs
         </div>
         <div class="pred-value">{prediccion:.2f} m/s</div>
