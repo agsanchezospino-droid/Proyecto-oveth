@@ -21,15 +21,14 @@ st.markdown("""
 <div class="hero-banner">
     <div class="hero-badge">🟢 DATOS ABIERTOS COLOMBIA · IDEAM · SANTIAGO DE CALI</div>
     <h1>🌬️ Predicción de Velocidad del Viento en Cali</h1>
-    <p>Sistema inteligente basado en <b>Máquina de Soporte Vectorial (SVR - Kernel RBF)</b> entrenado con mediciones meteorológicas oficiales.</p>
+    <p>Sistema inteligente basado en <b>Máquina de Soporte Vectorial (SVR - Kernel RBF)</b> entrenado con 5000 mediciones oficiales.</p>
 </div>
 """, unsafe_allow_html=True)
 
-# 2. Carga y limpieza de los 5000 datos reales del IDEAM con caché (SIN CAMBIOS)
+# 2. Carga y limpieza de los 5000 datos desde el archivo Excel local con caché
 @st.cache_data
 def cargar_datos():
-    url = "https://www.datos.gov.co/resource/sgfv-3yp8.csv?$q=CALI&$limit=5000"
-    df = pd.read_csv(url)
+    df = pd.read_excel("vientos_cali.xlsx")
     df["fechaobservacion"] = pd.to_datetime(df["fechaobservacion"], errors="coerce")
     df["valorobservado"] = pd.to_numeric(df["valorobservado"], errors="coerce")
     df = df.dropna(subset=["fechaobservacion", "valorobservado"])
@@ -37,10 +36,9 @@ def cargar_datos():
     df["hora"] = df["fechaobservacion"].dt.hour
     return df
 
-with st.spinner("Cargando datos meteorológicos oficiales del IDEAM..."):
-    df = cargar_datos()
+df = cargar_datos()
 
-# 3. Entrenamiento del modelo SVR (80% entrenamiento, 20% prueba) (SIN CAMBIOS)
+# 3. Entrenamiento del modelo SVR (80% entrenamiento, 20% prueba)
 X = df[["mes", "hora"]]
 y = df["valorobservado"]
 
@@ -49,114 +47,84 @@ X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.20, random
 modelo = SVR(kernel="rbf")
 modelo.fit(X_train, y_train)
 
-# Evaluación del modelo (SIN CAMBIOS)
+# Evaluación del modelo
 y_pred = modelo.predict(X_test)
 mae = mean_absolute_error(y_test, y_pred)
 mse = mean_squared_error(y_test, y_pred)
 
-# 4. Panel lateral para predicción interactiva
+# 4. Panel lateral interactivo y fácil de entender
 nombres_meses = [
     "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
     "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"
 ]
 
 with st.sidebar:
-    st.header("⚙️ Simulador de Viento")
-    st.caption("Ajusta el mes y la hora para estimar la velocidad del viento en Cali.")
+    st.header("⚙️ Parámetros de Predicción")
+    st.caption("Elige el mes y la hora para estimar la velocidad del viento.")
 
-    mes_usuario = st.slider("📅 Selecciona el Mes", 1, 12, 6)
+    # Lista desplegable con nombres de los meses y conversión interna a número (1-12)
+    mes_nombre = st.selectbox("📅 Selecciona el Mes", nombres_meses, index=5)
+    mes_usuario = nombres_meses.index(mes_nombre) + 1
+
     hora_usuario = st.slider("🕒 Selecciona la Hora (0-23)", 0, 23, 14)
 
+    # Predicción en m/s y conversión a km/h
     entrada = pd.DataFrame({"mes": [mes_usuario], "hora": [hora_usuario]})
     prediccion = modelo.predict(entrada)[0]
+    prediccion_kmh = prediccion * 3.6
 
-    # Contexto visual amigable para el usuario
-    nombre_mes = nombres_meses[mes_usuario - 1]
-    icono_hora = "🌙" if hora_usuario < 6 else ("🌅" if hora_usuario < 12 else ("☀️" if hora_usuario < 18 else "🌆"))
-    pred_kmh = prediccion * 3.6
+    st.subheader("🎯 Resultado Estimado")
+    col_s1, col_s2 = st.columns(2)
+    col_s1.metric("En m/s", f"{prediccion:.2f} m/s")
+    col_s2.metric("En km/h", f"{prediccion_kmh:.2f} km/h")
 
-    if prediccion < 0.5:
-        nivel_viento = "🍃 Calma"
-    elif prediccion < 1.6:
-        nivel_viento = "🌿 Ventolina (muy suave)"
-    elif prediccion < 3.4:
-        nivel_viento = "🌬️ Brisa ligera"
-    elif prediccion < 5.5:
-        nivel_viento = "💨 Brisa suave (típica caleña)"
+    # Aviso sencillo explicando qué significa esa velocidad
+    if prediccion < 3:
+        st.success("🍃 **Brisa suave:** Viento ligero y agradable (menor a 3 m/s).")
+    elif prediccion <= 6:
+        st.info("🌬️ **Viento moderado:** Brisa fresca típica de la tarde caleña (entre 3 y 6 m/s).")
     else:
-        nivel_viento = "🌪️ Brisa moderada a fuerte"
+        st.info("💨 **Viento fuerte:** Corrientes de aire intensas (mayor a 6 m/s).")
 
-    st.markdown(f"""
-    <div class="pred-card">
-        <div class="pred-header">
-            📅 {nombre_mes} &nbsp;|&nbsp; {icono_hora} {hora_usuario:02d}:00 hrs
-        </div>
-        <div class="pred-value">{prediccion:.2f} m/s</div>
-        <div class="pred-sub">Equivalente a <b>{pred_kmh:.1f} km/h</b><br>{nivel_viento}</div>
-    </div>
-    """, unsafe_allow_html=True)
+# 5. Vista principal organizada en pestañas
+tab1, tab2 = st.tabs(["Predicción y Gráfica", "Datos del Excel (IDEAM)"])
 
-    st.progress(min(max(float(prediccion) / 6.0, 0.05), 1.0), text="Intensidad estimada del viento")
-    st.success(f"Velocidad estimada: **{prediccion:.2f} m/s**")
+with tab1:
+    # Tarjetas visuales con métricas del modelo en 3 columnas
+    col1, col2, col3 = st.columns(3)
+    col1.metric("Total de Datos Oficiales", len(df))
+    col2.metric("Error MAE", f"{mae:.4f} m/s")
+    col3.metric("Error MSE", f"{mse:.4f}")
 
-# 5. Tarjetas visuales con métricas en 3 columnas
-st.markdown("### 📊 Desempeño del Modelo y Datos")
-col1, col2, col3 = st.columns(3)
-col1.metric(
-    "Total de Datos Oficiales",
-    f"{len(df):,}",
-    "IDEAM Cali",
-    delta_color="off",
-    help="Registros válidos descargados en tiempo real desde Datos Abiertos Colombia (sgfv-3yp8)."
-)
-col2.metric(
-    "Error MAE (Promedio)",
-    f"{mae:.4f} m/s",
-    "Precisión media",
-    delta_color="off",
-    help="Error Absoluto Medio entre los valores reales y las predicciones del conjunto de prueba (20%)."
-)
-col3.metric(
-    "Error MSE (Cuadrático)",
-    f"{mse:.4f}",
-    "Kernel RBF",
-    delta_color="off",
-    help="Error Cuadrático Medio evaluado sobre el 20% de datos de prueba."
-)
+    st.write("")
 
-st.write("")
+    # Gráficas visuales
+    col_graf1, col_graf2 = st.columns([3, 2])
 
-# 6. Sección gráfica en dos paneles visuales
-col_graf1, col_graf2 = st.columns([3, 2])
+    with col_graf1:
+        st.subheader("📈 Valores Reales vs. Predichos (Primeros 100 datos de prueba)")
+        df_grafica = pd.DataFrame({
+            "Valor Real (m/s)": y_test.values[:100],
+            "Predicción SVR (m/s)": y_pred[:100]
+        })
+        st.line_chart(df_grafica, color=["#f97316", "#0ea5e9"], height=350)
 
-with col_graf1:
-    st.subheader("📈 Valores Reales vs. Predichos (Primeros 100 datos de prueba)")
-    st.caption("Comparación directa entre las mediciones reales del IDEAM y la estimación del modelo SVR.")
-    df_grafica = pd.DataFrame({
-        "Valor Real (m/s)": y_test.values[:100],
-        "Predicción SVR (m/s)": y_pred[:100]
-    })
-    st.line_chart(df_grafica, color=["#f97316", "#0ea5e9"], height=350)
+    with col_graf2:
+        st.subheader(f"🕒 Curva Diaria en {mes_nombre}")
+        horas_dia = pd.DataFrame({"mes": [mes_usuario] * 24, "hora": list(range(24))})
+        df_curva_dia = pd.DataFrame(
+            {"Velocidad Estimada (m/s)": modelo.predict(horas_dia)},
+            index=range(24)
+        )
+        df_curva_dia.index.name = "Hora del día"
+        st.area_chart(df_curva_dia, color="#0ea5e9", height=350)
 
-with col_graf2:
-    st.subheader(f"🕒 Curva Diaria en {nombre_mes}")
-    st.caption("Comportamiento estimado del viento hora por hora (00:00 a 23:00) para el mes elegido.")
-    horas_dia = pd.DataFrame({"mes": [mes_usuario] * 24, "hora": list(range(24))})
-    df_curva_dia = pd.DataFrame(
-        {"Velocidad Estimada (m/s)": modelo.predict(horas_dia)},
-        index=range(24)
-    )
-    df_curva_dia.index.name = "Hora del día"
-    st.area_chart(df_curva_dia, color="#0ea5e9", height=350)
-
-# 7. Tabla desplegable con los 5000 datos originales
-st.write("")
-with st.expander("📂 Ver 5000 datos oficiales del IDEAM"):
-    st.caption("Conjunto completo de registros meteorológicos obtenidos directamente del portal gubernamental Datos Abiertos Colombia.")
+with tab2:
+    st.subheader("📂 5000 Registros Oficiales del IDEAM (Más reciente a más antiguo)")
     st.dataframe(df, use_container_width=True, hide_index=True)
 
 st.markdown("""
 <div class="footer-note">
-    Fuente oficial: <b>IDEAM - Datos Abiertos Colombia (Dataset sgfv-3yp8)</b> · Motor predictivo: <b>Scikit-Learn SVR (RBF)</b> · Santiago de Cali, Colombia
+    Fuente oficial: <b>IDEAM - Datos Abiertos Colombia (Archivo local vientos_cali.xlsx)</b> · Motor predictivo: <b>Scikit-Learn SVR (RBF)</b>
 </div>
 """, unsafe_allow_html=True)
